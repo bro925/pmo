@@ -1023,375 +1023,114 @@ Options.HitboxZ:OnChanged(function() Hitboxes.rangeZ = Options.HitboxZ.Value end
 -- // ============================================================== Farming Tab ============================================================== \\ --
 local ChestFarmBox = Tabs.Farming:AddLeftGroupbox('Chest Farm')
 
+local function getHRP()
+    return (game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart"))
+end
+
 local function loadChests()
-    local replicatedStorage = game:GetService("ReplicatedStorage")
-    local unloaded = replicatedStorage:FindFirstChild("Unloaded")
-    if not unloaded then return end
-    
+    local rs = game:GetService("ReplicatedStorage")
+    local unloaded = rs:FindFirstChild("Unloaded")
     local map = workspace:FindFirstChild("Map")
-    if not map then return end
     
-    local chestParts = {}
+    if not unloaded or not map then return end
     
-    local function searchForChests(folder)
-        for _, child in ipairs(folder:GetChildren()) do
-            if child:IsA("Model") then
-                searchForChests(child)
-            elseif child:IsA("BasePart") and (child.Name == "Chest1" or child.Name == "Chest2" or child.Name == "Chest3") then
-                table.insert(chestParts, child)
-            end
+    for _, item in ipairs(unloaded:GetDescendants()) do
+        if item:IsA("BasePart") and item.Name:find("Chest") then
+            item.Parent = map
+            item.CanTouch = true
+            item.CanCollide = true
         end
     end
-    
-    searchForChests(unloaded)
-    
-    for _, chestPart in ipairs(chestParts) do
-        chestPart.Parent = map
-    end
 end
 
-local function isDescendantOf(part, model)
-    local current = part.Parent
-    while current do
-        if current == model then return true end
-        current = current.Parent
-    end
-    return false
-end
-
-local function getChestZone(chest)
+local function getChests()
+    local found = {}
     local map = workspace:FindFirstChild("Map")
-    if not map then return nil end
+    if not map then return found end
 
-    local fishmen = map:FindFirstChild("Fishmen")
-    local skyArea1 = map:FindFirstChild("SkyArea1")
-    local skyArea2 = map:FindFirstChild("SkyArea2")
-    local sky = map:FindFirstChild("Sky")
-
-    if fishmen and isDescendantOf(chest, fishmen) then return "fishmen" end
-    if skyArea2 and isDescendantOf(chest, skyArea2) then return "skyarea2" end
-    if skyArea1 and isDescendantOf(chest, skyArea1) then return "skyarea1" end
-    if sky and isDescendantOf(chest, sky) then return "skyarea1" end
-
-    return nil
-end
-
-local function getPlayerZone()
-    local hrp = character and character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-
-    local map = workspace:FindFirstChild("Map")
-    if not map then return nil end
-
-    local fishmen = map:FindFirstChild("Fishmen")
-    local skyArea1 = map:FindFirstChild("SkyArea1")
-    local skyArea2 = map:FindFirstChild("SkyArea2")
-    local sky = map:FindFirstChild("Sky")
-
-    local function isNear(model, radius)
-        if not model then return false end
-        for _, desc in ipairs(model:GetDescendants()) do
-            if desc:IsA("BasePart") then
-                if (hrp.Position - desc.Position).Magnitude < radius then
-                    return true
-                end
-            end
-        end
-        return false
-    end
-
-    if fishmen and isNear(fishmen, 200) then return "fishmen" end
-    if skyArea2 and isNear(skyArea2, 200) then return "skyarea2" end
-    if skyArea1 and isNear(skyArea1, 200) then return "skyarea1" end
-    if sky and isNear(sky, 200) then return "skyarea1" end
-
-    return "overworld"
-end
-
-local function teleportTo(part, above)
-    local hrp = character and character:FindFirstChild("HumanoidRootPart")
-    if not hrp or not part then return end
-    local offset = above and Vector3.new(0, 10, 0) or Vector3.zero
-    hrp.CFrame = CFrame.new(part.Position + offset)
-    task.wait(0.3)
-end
-
-local function zoneShit(chestZone)
-    local hrp = character and character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local map = workspace:FindFirstChild("Map")
-    if not map then return end
-
-    local playerZone = getPlayerZone()
-
-    if chestZone == "fishmen" and playerZone ~= "fishmen" then
-        local entrance = map:FindFirstChild("TeleportSpawn") and map.TeleportSpawn:FindFirstChild("Entrance")
-        if entrance then
-            teleportTo(entrance)
-            task.wait(1)
-        end
-    elseif chestZone ~= "fishmen" and playerZone == "fishmen" then
-        local exit = map:FindFirstChild("TeleportSpawn") and map.TeleportSpawn:FindFirstChild("Exit")
-        if exit then
-            teleportTo(exit)
-            task.wait(1)
-        end
-    elseif chestZone == "skyarea2" and playerZone ~= "skyarea2" then
-        local pathwayHouse = map:FindFirstChild("SkyArea2") and map.SkyArea2:FindFirstChild("PathwayHouse")
-        local exitPart = pathwayHouse and pathwayHouse:FindFirstChild("Exit")
-        if exitPart then
-            local belowExit = Vector3.new(exitPart.Position.X, exitPart.Position.Y - 50, exitPart.Position.Z)
-            local distBelow = (hrp.Position - belowExit).Magnitude
-            if distBelow < 60 then
-                teleportTo(exitPart, true)
-            else
-                local templeEntrance = map:FindFirstChild("SkyArea1") and map.SkyArea1:FindFirstChild("PathwayTemple") and map.SkyArea1.PathwayTemple:FindFirstChild("Entrance")
-                if templeEntrance then
-                    teleportTo(templeEntrance, true)
-                end
-            end
-            task.wait(1)
-        end
-    elseif chestZone == "skyarea1" and playerZone ~= "skyarea1" and playerZone ~= "overworld" then
-        local pathwayHouse = map:FindFirstChild("SkyArea2") and map.SkyArea2:FindFirstChild("PathwayHouse")
-        local exitPart = pathwayHouse and pathwayHouse:FindFirstChild("Exit")
-        if exitPart then
-            teleportTo(exitPart)
-            task.wait(1)
-        end
-    end
-end
-
-local function fireTouchInterest(chestPart)
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-    local hrp = character.HumanoidRootPart
-    
-    local touchInterests = {}
-    for _, child in ipairs(chestPart:GetChildren()) do
-        if child:IsA("TouchTransmitter") then
-            table.insert(touchInterests, child)
-        end
-    end
-    
-    for _, touchInterest in ipairs(touchInterests) do
-        firetouchinterest(hrp, chestPart, 0)
-        firetouchinterest(hrp, chestPart, 1)
-    end
-end
-
-local function isChestCollectable(chestPart)
-    if not chestPart or not chestPart.Parent then return false end
-    
-    for _, child in ipairs(chestPart:GetChildren()) do
-        if child:IsA("TouchTransmitter") then
-            return true
-        end
-    end
-    return false
-end
-
-local function getAllCollectableChests()
-    local collectableChests = {}
-    local map = workspace:FindFirstChild("Map")
-    if not map then return collectableChests end
-    
     for _, desc in ipairs(map:GetDescendants()) do
-        if desc:IsA("BasePart") and (desc.Name == "Chest1" or desc.Name == "Chest2" or desc.Name == "Chest3") then
-            if isChestCollectable(desc) then
-                table.insert(collectableChests, desc)
+        if desc:IsA("BasePart") and desc.Name:find("Chest") then
+            if desc:FindFirstChildWhichIsA("TouchTransmitter") then
+                table.insert(found, desc)
             end
         end
     end
-    
-    return collectableChests
-end
-
-local function freezePlayer(freeze)
-    local hrp = character and character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character and character:FindFirstChild("Humanoid")
-    
-    if freeze then
-        if humanoid then
-            humanoid.PlatformStand = true
-        end
-        if hrp then
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end
-        if ChestFarm.bodyVelocity then
-            ChestFarm.bodyVelocity:Destroy()
-            ChestFarm.bodyVelocity = nil
-        end
-        ChestFarm.bodyVelocity = Instance.new("BodyVelocity")
-        ChestFarm.bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-        ChestFarm.bodyVelocity.Velocity = Vector3.zero
-        ChestFarm.bodyVelocity.Parent = hrp
-    else
-        if ChestFarm.bodyVelocity then
-            ChestFarm.bodyVelocity:Destroy()
-            ChestFarm.bodyVelocity = nil
-        end
-        if humanoid then
-            humanoid.PlatformStand = false
-            humanoid.AutoRotate = true
-        end
-        if hrp then
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end
-    end
+    return found
 end
 
 ChestFarmBox:AddToggle('ChestFarmEnabled', {
     Text = 'Enabled',
     Default = false,
-    Tooltip = 'Collects every chest available',
-}):AddKeyPicker('ChestFarmKeybind', {
-    Default = 'None',
-    NoUI = false,
-    Mode = 'Toggle',
-    Text = 'Chest Farm',
-    SyncToggleState = true,
+    Tooltip = 'Farms Beli by collecting chests',
 })
 
 Toggles.ChestFarmEnabled:OnChanged(function()
     ChestFarm.enabled = Toggles.ChestFarmEnabled.Value
-    if ChestFarm.enabled then
-        ChestFarm.chestHistory = {}
-        ChestFarm.lastRecheck = tick()
-        ChestFarm.lastCleanup = tick()
-        ChestFarm.lastTeamSwitch = tick()
-        ChestFarm.chestAttemptStartTime = {}
-        
-        task.spawn(function()
-            loadChests()
-            freezePlayer(true)
-            
-            while ChestFarm.enabled do
-                if not character or not character.Parent then
-                    task.wait(0.1)
-                else
-                    if tick() - ChestFarm.lastTeamSwitch >= 5 then
-                        local currentTeam = plr.Team
-                        local newTeam = (currentTeam and currentTeam.Name == "Marines") and "Pirates" or "Marines"
-                        pcall(function() CommF:InvokeServer("SetTeam", newTeam) end)
-                        ChestFarm.lastTeamSwitch = tick()
-                    end
-                    
-                    if tick() - ChestFarm.lastRecheck >= 6 then
-                        for chest, timestamp in pairs(ChestFarm.chestHistory) do
-                            if chest and chest.Parent and isChestCollectable(chest) then
-                                local touchTransmitters = 0
-                                for _, child in ipairs(chest:GetChildren()) do
-                                    if child:IsA("TouchTransmitter") then
-                                        touchTransmitters = touchTransmitters + 1
-                                    end
-                                end
-                                if touchTransmitters > 0 then
-                                    ChestFarm.chestHistory[chest] = nil
-                                end
-                            end
-                        end
-                        ChestFarm.lastRecheck = tick()
-                    end
-                    
-                    if tick() - ChestFarm.lastCleanup >= 2 then
-                        local chestModels = workspace:FindFirstChild("ChestModels")
-                        if chestModels then
-                            for _, child in ipairs(chestModels:GetChildren()) do
-                                child:Destroy()
-                            end
-                        end
-                        ChestFarm.lastCleanup = tick()
-                    end
-                    
-                    local collectableChests = getAllCollectableChests()
-                    
-                    if #collectableChests == 0 then
-                        ChestFarm.currentTarget = nil
-                        task.wait(1)
-                    else
-                        if not ChestFarm.currentTarget or not isChestCollectable(ChestFarm.currentTarget) then
-                            local nearest, nearestDist = nil, math.huge
-                            local hrp = character.HumanoidRootPart
-                            for _, chestPart in ipairs(collectableChests) do
-                                if not ChestFarm.chestHistory[chestPart] or tick() - ChestFarm.chestHistory[chestPart] > 30 then
-                                    local dist = (hrp.Position - chestPart.Position).Magnitude
-                                    if dist < nearestDist then
-                                        nearestDist = dist
-                                        nearest = chestPart
-                                    end
-                                end
-                            end
-                            ChestFarm.currentTarget = nearest
-                        end
-                        
-                        if ChestFarm.currentTarget and isChestCollectable(ChestFarm.currentTarget) then
-                            local chestZone = getChestZone(ChestFarm.currentTarget)
-                            local playerZone = getPlayerZone()
-                            
-                            local needsTeleport = (chestZone == "fishmen" and playerZone ~= "fishmen")
-                                or (chestZone ~= "fishmen" and playerZone == "fishmen")
-                                or (chestZone == "skyarea2" and playerZone ~= "skyarea2")
-                                or (chestZone == "skyarea1" and playerZone ~= "skyarea1" and playerZone ~= "overworld")
-                            
-                            if needsTeleport then
-                                zoneShit(chestZone)
-                            else
-                                local hrp = character.HumanoidRootPart
-                                local chestPos = ChestFarm.currentTarget.Position
-                                local targetPos = Vector3.new(chestPos.X, chestPos.Y, chestPos.Z)
-                                hrp.CFrame = CFrame.new(targetPos) * (hrp.CFrame - hrp.Position)
-
-                                for i = 1, 300 do
-                                    fireTouchInterest(ChestFarm.currentTarget)
-                                end
-                                
-                                ChestFarm.chestHistory[ChestFarm.currentTarget] = tick()
-                                ChestFarm.currentTarget = nil
-                            end
-                        end
-                    end
-                end
-                task.wait(0.03)
-            end
-        end)
-    else
-        ChestFarm.currentTarget = nil
-        ChestFarm.chestHistory = nil
-        ChestFarm.lastRecheck = nil
-        ChestFarm.lastCleanup = nil
-        ChestFarm.lastTeamSwitch = nil
-        ChestFarm.chestAttemptStartTime = nil
-        
-        freezePlayer(false)
-        
-        local hrp = character and character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = CFrame.new(hrp.Position)
-        end
-    end
-end)
-
-plr.CharacterAdded:Connect(function(newChar)
-    character = newChar
-    task.wait()
-    character2 = charFolder:FindFirstChild(plr.Name)
     
     if ChestFarm.enabled then
-        Toggles.ChestFarmEnabled:SetValue(false)
-        task.wait(0.1)
+        ChestFarm.lastTeamSwitch = tick()
         
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        local hum = character:FindFirstChild("Humanoid")
-        while not hrp or not hum or hum.Health <= 0 do
-            task.wait(0.1)
-            hrp = character:FindFirstChild("HumanoidRootPart")
-            hum = character:FindFirstChild("Humanoid")
-        end
-        
-        Toggles.ChestFarmEnabled:SetValue(true)
+        task.spawn(function()
+            while ChestFarm.enabled do
+                local char = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
+                local hrp = char:WaitForChild("HumanoidRootPart", 5)
+                
+                if not hrp then task.wait() continue end
+                
+                loadChests()
+
+                if tick() - ChestFarm.lastTeamSwitch >= 6 then
+                    local oldChar = char
+                    local newTeam = (game.Players.LocalPlayer.Team and game.Players.LocalPlayer.Team.Name == "Marines") and "Pirates" or "Marines"
+                    
+                    pcall(function() CommF:InvokeServer("SetTeam", newTeam) end)
+                    ChestFarm.lastTeamSwitch = tick()
+
+                    task.delay(0.5, function()
+                        if game.Players.LocalPlayer.Character == oldChar then
+                            local hum = oldChar:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.Health > 0 then hum.Health = 0 end
+                        end
+                    end)
+                    
+                    game.Players.LocalPlayer.CharacterAdded:Wait()
+                    continue 
+                end
+
+                local chests = getChests()
+                local target = nil
+                local minDist = math.huge
+
+                for _, chest in ipairs(chests) do
+                    local d = (hrp.Position - chest.Position).Magnitude
+                    if d < minDist then
+                        minDist = d
+                        target = chest
+                    end
+                end
+
+                if target and target.Parent then
+                    local collecting = true
+                    task.spawn(function()
+                        while collecting and target.Parent and ChestFarm.enabled and game.Players.LocalPlayer.Character == char do
+                            firetouchinterest(hrp, target, 0)
+                            firetouchinterest(hrp, target, 1)
+
+                            task.wait(0.05)
+                        end
+                    end)
+
+                    while target.Parent and target:FindFirstChildWhichIsA("TouchTransmitter") and ChestFarm.enabled and game.Players.LocalPlayer.Character == char do
+                        hrp.CFrame = target.CFrame
+                        task.wait(0.1)
+                    end
+                    
+                    collecting = false
+                else
+                    task.wait(0.1)
+                end
+            end
+        end)
     end
 end)
 
